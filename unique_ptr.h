@@ -44,16 +44,23 @@ auto operator==(const my_unique_ptr<Ptr, Deleter>& u, const my_unique_ptr<Ptr, D
     return u.get() == _u.get();
 }
 
+template<typename Ptr, typename Deleter>
+auto operator!=(const my_unique_ptr<Ptr, Deleter>& u, const my_unique_ptr<Ptr, Deleter>& _u) -> bool {
+    return u.get() != _u.get();
+}
+
 template <typename Ptr, typename Deleter>
 my_unique_ptr<Ptr, Deleter>::my_unique_ptr() noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<Deleter>); // deleter must be a nothrow default constructible
+    pointer = nullptr;
 }
 
 template <typename Ptr, typename Deleter>
 my_unique_ptr<Ptr, Deleter>::my_unique_ptr(std::nullptr_t) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<Deleter>); // deleter must be a nothrow default constructible
+    pointer = nullptr;
 }
 
 template <typename Ptr, typename Deleter>
@@ -83,25 +90,23 @@ template <typename Ptr, typename Deleter>
 my_unique_ptr<Ptr, Deleter>::my_unique_ptr(my_unique_ptr&& u) noexcept
 {
     static_assert(std::is_nothrow_move_constructible_v<decltype(u.deleter)>); // deleter must be a nothrow move constructible
-    if(pointer != u.pointer) {
-        deleter(pointer);
-        pointer = u.pointer;
-        deleter = std::move(u.deleter);
-        u.pointer = nullptr;
-    }
+    pointer = u.pointer;
+    deleter = std::move(u.deleter);
+    u.pointer = nullptr;
 }
 
 template <typename Ptr, typename Deleter>
 my_unique_ptr<Ptr, Deleter>::~my_unique_ptr()
 {
-    deleter(pointer); // or get_deleter(get())
+    if(pointer)
+        deleter(pointer); // or get_deleter(get())
 }
 
 template <typename Ptr, typename Deleter>
 auto my_unique_ptr<Ptr, Deleter>::operator=(my_unique_ptr&& u) noexcept -> my_unique_ptr&
 {
     static_assert(std::is_nothrow_move_constructible_v<decltype(u.deleter)>); // deleter must be a nothrow move constructible
-    if(pointer != u.pointer) {
+    if(this != &u) {
         deleter(pointer);
         pointer = u.pointer;
         deleter = std::move(u.deleter);
@@ -113,7 +118,7 @@ auto my_unique_ptr<Ptr, Deleter>::operator=(my_unique_ptr&& u) noexcept -> my_un
 template <typename Ptr, typename Deleter>
 auto my_unique_ptr<Ptr, Deleter>::operator=(std::nullptr_t) noexcept -> my_unique_ptr&
 {
-    pointer = nullptr;
+    reset(pointer);
     return *this;
 }
 
@@ -144,7 +149,8 @@ auto my_unique_ptr<Ptr, Deleter>::get() const noexcept -> Ptr*
 template <typename Ptr, typename Deleter>
 auto my_unique_ptr<Ptr, Deleter>::reset(Ptr* _Ptr) noexcept -> void
 {
-    deleter(pointer);
+    if(pointer)
+        deleter(pointer);
     pointer = _Ptr;
 }
 
