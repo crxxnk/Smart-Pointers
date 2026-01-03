@@ -21,6 +21,7 @@ public:
     auto operator=(const my_unique_ptr&) -> my_unique_ptr& = delete;
     auto operator*() const noexcept -> Ptr&;
     auto operator->() const noexcept -> Ptr*;
+    explicit operator bool() const noexcept;
 
     // Members
     auto get() const noexcept -> Ptr*;
@@ -69,7 +70,7 @@ my_unique_ptr<Ptr, Deleter>::my_unique_ptr(my_unique_ptr&& u) noexcept
 template <typename Ptr, typename Deleter>
 my_unique_ptr<Ptr, Deleter>::~my_unique_ptr()
 {
-    deleter(pointer);
+    deleter(pointer); // or get_deleter(get())
 }
 
 template <typename Ptr, typename Deleter>
@@ -82,6 +83,12 @@ template <typename Ptr, typename Deleter>
 auto my_unique_ptr<Ptr, Deleter>::operator->() const noexcept -> Ptr*
 {
     return pointer;
+}
+
+template <typename Ptr, typename Deleter>
+my_unique_ptr<Ptr, Deleter>::operator bool() const noexcept
+{
+    return pointer != nullptr;
 }
 
 template <typename Ptr, typename Deleter>
