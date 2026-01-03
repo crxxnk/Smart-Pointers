@@ -2,11 +2,11 @@
 #include <memory>
 #include <type_traits>
 
-template<typename Ptr, typename Deleter>
+template<typename Ptr, typename Deleter = std::default_delete<Ptr>>
 class my_unique_ptr
 {
     Ptr* pointer;
-    std::default_delete<Deleter> deleter;
+    Deleter deleter;
 public:
     // Constructors && Destructor
     my_unique_ptr(std::nullptr_t) noexcept;
@@ -24,7 +24,7 @@ public:
 
     // Members
     auto get() const noexcept -> Ptr*;
-    auto reset(Ptr* _Ptr) noexcept -> void;
+    auto reset(Ptr* _Ptr = nullptr) noexcept -> void;
     auto get_deleter() const noexcept -> const Deleter&;
 };
 
@@ -72,19 +72,19 @@ my_unique_ptr<Ptr, Deleter>::~my_unique_ptr()
     deleter(pointer);
 }
 
-template<typename Ptr, typename Deleter>
+template <typename Ptr, typename Deleter>
 auto my_unique_ptr<Ptr, Deleter>::operator*() const noexcept -> Ptr&
 {
     return *pointer;
 }
 
-template<typename Ptr, typename Deleter>
+template <typename Ptr, typename Deleter>
 auto my_unique_ptr<Ptr, Deleter>::operator->() const noexcept -> Ptr*
 {
     return pointer;
 }
 
-template<typename Ptr, typename Deleter>
+template <typename Ptr, typename Deleter>
 auto my_unique_ptr<Ptr, Deleter>::get() const noexcept -> Ptr*
 {
     return pointer;
@@ -94,7 +94,7 @@ template <typename Ptr, typename Deleter>
 auto my_unique_ptr<Ptr, Deleter>::reset(Ptr* _Ptr) noexcept -> void
 {
     deleter(pointer);
-    pointer = nullptr;
+    pointer = _Ptr;
 }
 
 template <typename Ptr, typename Deleter>
