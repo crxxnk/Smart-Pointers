@@ -1,6 +1,9 @@
+#pragma once
 #include <iostream>
 #include <memory>
 #include <type_traits>
+
+#define _NODISCARD [[nodiscard]]
 
 template<typename Ptr, typename Deleter = std::default_delete<Ptr>>
 class my_unique_ptr
@@ -22,14 +25,14 @@ public:
     auto operator=(my_unique_ptr&& u) noexcept -> my_unique_ptr&;
     auto operator=(std::nullptr_t) noexcept -> my_unique_ptr&;
     auto operator=(const my_unique_ptr&) -> my_unique_ptr& = delete;
-    auto operator*() const noexcept -> Ptr&;
-    auto operator->() const noexcept -> Ptr*;
+    _NODISCARD auto operator*() const noexcept -> Ptr&;
+    _NODISCARD auto operator->() const noexcept -> Ptr*;
     explicit operator bool() const noexcept;
 
     // Members
-    auto get() const noexcept -> Ptr*;
+    _NODISCARD auto get() const noexcept -> Ptr*;
     auto reset(Ptr* _Ptr = nullptr) noexcept -> void;
-    auto get_deleter() const noexcept -> const Deleter&;
+    _NODISCARD auto get_deleter() const noexcept -> const Deleter&;
     auto swap(my_unique_ptr& other) noexcept -> void;
 };
 
