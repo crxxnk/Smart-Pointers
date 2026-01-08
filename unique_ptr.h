@@ -5,26 +5,34 @@
 
 #define _NODISCARD [[nodiscard]]
 
-template<typename Ptr, typename Deleter = std::default_delete<Ptr>>
-class my_unique_ptr
+namespace iosp { // implementation of smart pointers
+    template<typename Ptr, typename Deleter = std::default_delete<Ptr>>
+    class unique_ptr;
+
+    template<typename Ptr, typename Deleter>
+    class unique_ptr<Ptr[], Deleter>;
+};
+
+template<typename Ptr, typename Deleter>
+class iosp::unique_ptr
 {
     Ptr* pointer;
     Deleter deleter;
 public:
     // Constructors && Destructor
-    my_unique_ptr() noexcept;
-    my_unique_ptr(std::nullptr_t) noexcept;
-    explicit my_unique_ptr(Ptr* _Ptr) noexcept;
-    my_unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) noexcept;
-    my_unique_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept;
-    my_unique_ptr(my_unique_ptr&& u) noexcept;
-    my_unique_ptr(const my_unique_ptr&) = delete;
-    ~my_unique_ptr();
+    unique_ptr() noexcept;
+    unique_ptr(std::nullptr_t) noexcept;
+    explicit unique_ptr(Ptr* _Ptr) noexcept;
+    unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) noexcept;
+    unique_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept;
+    unique_ptr(unique_ptr&& u) noexcept;
+    unique_ptr(const unique_ptr&) = delete;
+    ~unique_ptr();
     
     // Operators
-    auto operator=(my_unique_ptr&& u) noexcept -> my_unique_ptr&;
-    auto operator=(std::nullptr_t) noexcept -> my_unique_ptr&;
-    auto operator=(const my_unique_ptr&) -> my_unique_ptr& = delete;
+    auto operator=(unique_ptr&& u) noexcept -> unique_ptr&;
+    auto operator=(std::nullptr_t) noexcept -> unique_ptr&;
+    auto operator=(const unique_ptr&) -> unique_ptr& = delete;
     _NODISCARD auto operator*() const noexcept -> Ptr&;
     _NODISCARD auto operator->() const noexcept -> Ptr*;
     explicit operator bool() const noexcept;
@@ -34,48 +42,48 @@ public:
     _NODISCARD auto get_deleter() const noexcept -> const Deleter&;
     auto release() noexcept -> Ptr*;
     auto reset(Ptr* _Ptr = nullptr) noexcept -> void;
-    auto swap(my_unique_ptr& other) noexcept -> void;
+    auto swap(unique_ptr& other) noexcept -> void;
 };
 
 template<typename Ptr, typename Deleter>
-auto operator<<(std::ostream &os, const my_unique_ptr<Ptr, Deleter>& u) -> std::ostream& {
+auto operator<<(std::ostream &os, const iosp::unique_ptr<Ptr, Deleter>& u) -> std::ostream& {
     os << u.get();
     return os;
 };
 
 template<typename Ptr, typename Deleter>
-auto operator==(const my_unique_ptr<Ptr, Deleter>& u, const my_unique_ptr<Ptr, Deleter>& _u) -> bool {
+auto operator==(const iosp::unique_ptr<Ptr, Deleter>& u, const iosp::unique_ptr<Ptr, Deleter>& _u) -> bool {
     return u.get() == _u.get();
 }
 
 template<typename Ptr, typename Deleter>
-auto operator!=(const my_unique_ptr<Ptr, Deleter>& u, const my_unique_ptr<Ptr, Deleter>& _u) -> bool {
+auto operator!=(const iosp::unique_ptr<Ptr, Deleter>& u, const iosp::unique_ptr<Ptr, Deleter>& _u) -> bool {
     return u.get() != _u.get();
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr, Deleter>::my_unique_ptr() noexcept
+iosp::unique_ptr<Ptr, Deleter>::unique_ptr() noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<Deleter>); // deleter must be a nothrow default constructible
     pointer = nullptr;
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr, Deleter>::my_unique_ptr(std::nullptr_t) noexcept
+iosp::unique_ptr<Ptr, Deleter>::unique_ptr(std::nullptr_t) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<Deleter>); // deleter must be a nothrow default constructible
     pointer = nullptr;
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr, Deleter>::my_unique_ptr(Ptr* _Ptr) noexcept
+iosp::unique_ptr<Ptr, Deleter>::unique_ptr(Ptr* _Ptr) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<Deleter>); // deleter must be a nothrow default constructible
     pointer = _Ptr;
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr, Deleter>::my_unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) noexcept
+iosp::unique_ptr<Ptr, Deleter>::unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) noexcept
 {
     static_assert(std::is_nothrow_copy_constructible_v<Deleter>); // deleter must be a nothrow copy constructible
     pointer = _Ptr;
@@ -83,7 +91,7 @@ my_unique_ptr<Ptr, Deleter>::my_unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) noex
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr, Deleter>::my_unique_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept
+iosp::unique_ptr<Ptr, Deleter>::unique_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept
 {
     static_assert(std::is_nothrow_move_constructible_v<Deleter>); // deleter must be a nothrow move constructible
     pointer = _Ptr;
@@ -91,7 +99,7 @@ my_unique_ptr<Ptr, Deleter>::my_unique_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr, Deleter>::my_unique_ptr(my_unique_ptr&& u) noexcept
+iosp::unique_ptr<Ptr, Deleter>::unique_ptr(unique_ptr&& u) noexcept
 {
     static_assert(std::is_nothrow_move_constructible_v<decltype(u.deleter)>); // deleter must be a nothrow move constructible
     pointer = u.pointer;
@@ -100,14 +108,14 @@ my_unique_ptr<Ptr, Deleter>::my_unique_ptr(my_unique_ptr&& u) noexcept
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr, Deleter>::~my_unique_ptr()
+iosp::unique_ptr<Ptr, Deleter>::~unique_ptr()
 {
     if(pointer)
         deleter(pointer); // or get_deleter(get())
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr, Deleter>::operator=(my_unique_ptr&& u) noexcept -> my_unique_ptr&
+auto iosp::unique_ptr<Ptr, Deleter>::operator=(unique_ptr&& u) noexcept -> unique_ptr&
 {
     static_assert(std::is_nothrow_move_constructible_v<decltype(u.deleter)>); // deleter must be a nothrow move constructible
     if(this != &u) {
@@ -120,44 +128,44 @@ auto my_unique_ptr<Ptr, Deleter>::operator=(my_unique_ptr&& u) noexcept -> my_un
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr, Deleter>::operator=(std::nullptr_t) noexcept -> my_unique_ptr&
+auto iosp::unique_ptr<Ptr, Deleter>::operator=(std::nullptr_t) noexcept -> unique_ptr&
 {
     reset(pointer);
     return *this;
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr, Deleter>::operator*() const noexcept -> Ptr&
+auto iosp::unique_ptr<Ptr, Deleter>::operator*() const noexcept -> Ptr&
 {
     return *pointer;
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr, Deleter>::operator->() const noexcept -> Ptr*
+auto iosp::unique_ptr<Ptr, Deleter>::operator->() const noexcept -> Ptr*
 {
     return pointer;
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr, Deleter>::operator bool() const noexcept
+iosp::unique_ptr<Ptr, Deleter>::operator bool() const noexcept
 {
     return pointer != nullptr;
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr, Deleter>::get() const noexcept -> Ptr*
+auto iosp::unique_ptr<Ptr, Deleter>::get() const noexcept -> Ptr*
 {
     return pointer;
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr, Deleter>::get_deleter() const noexcept -> const Deleter&
+auto iosp::unique_ptr<Ptr, Deleter>::get_deleter() const noexcept -> const Deleter&
 {
     return deleter;
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr, Deleter>::release() noexcept -> Ptr*
+auto iosp::unique_ptr<Ptr, Deleter>::release() noexcept -> Ptr*
 {
     Ptr* ptr = pointer;
     pointer = nullptr;
@@ -165,7 +173,7 @@ auto my_unique_ptr<Ptr, Deleter>::release() noexcept -> Ptr*
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr, Deleter>::reset(Ptr* _Ptr) noexcept -> void
+auto iosp::unique_ptr<Ptr, Deleter>::reset(Ptr* _Ptr) noexcept -> void
 {
     if(pointer)
         deleter(pointer);
@@ -173,32 +181,32 @@ auto my_unique_ptr<Ptr, Deleter>::reset(Ptr* _Ptr) noexcept -> void
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr, Deleter>::swap(my_unique_ptr &other) noexcept -> void
+auto iosp::unique_ptr<Ptr, Deleter>::swap(unique_ptr &other) noexcept -> void
 {
     std::swap(pointer, other.pointer);
     std::swap(deleter, other.deleter);
 }
 
 template<typename Ptr, typename Deleter>
-class my_unique_ptr<Ptr[], Deleter>
+class iosp::unique_ptr<Ptr[], Deleter>
 {
     Ptr* pointer;
     Deleter deleter;
 public:
     // Constructors && Destructor
-    my_unique_ptr() noexcept;
-    my_unique_ptr(std::nullptr_t) noexcept;
-    explicit my_unique_ptr(Ptr* _Ptr) noexcept;
-    my_unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) noexcept;
-    my_unique_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept;
-    my_unique_ptr(my_unique_ptr&& u) noexcept;
-    my_unique_ptr(const my_unique_ptr&) = delete;
-    ~my_unique_ptr();
+    unique_ptr() noexcept;
+    unique_ptr(std::nullptr_t) noexcept;
+    explicit unique_ptr(Ptr* _Ptr) noexcept;
+    unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) noexcept;
+    unique_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept;
+    unique_ptr(unique_ptr&& u) noexcept;
+    unique_ptr(const unique_ptr&) = delete;
+    ~unique_ptr();
     
     // Operators
-    auto operator=(my_unique_ptr&& u) noexcept -> my_unique_ptr&;
-    auto operator=(std::nullptr_t) noexcept -> my_unique_ptr&;
-    auto operator=(const my_unique_ptr&) -> my_unique_ptr& = delete;
+    auto operator=(unique_ptr&& u) noexcept -> unique_ptr&;
+    auto operator=(std::nullptr_t) noexcept -> unique_ptr&;
+    auto operator=(const unique_ptr&) -> unique_ptr& = delete;
     _NODISCARD auto operator[](size_t i) const -> Ptr&;
     explicit operator bool() const noexcept;
 
@@ -207,11 +215,11 @@ public:
     _NODISCARD auto get_deleter() const noexcept -> const Deleter&;
     _NODISCARD auto release() noexcept -> Ptr*;
     auto reset(Ptr* _Ptr = nullptr) noexcept -> void;
-    auto swap(my_unique_ptr& other) noexcept -> void;
+    auto swap(unique_ptr& other) noexcept -> void;
 };
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr[], Deleter>::my_unique_ptr() noexcept
+iosp::unique_ptr<Ptr[], Deleter>::unique_ptr() noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<Deleter>); // deleter must be a nothrow default constructible
     pointer = nullptr;
@@ -219,7 +227,7 @@ my_unique_ptr<Ptr[], Deleter>::my_unique_ptr() noexcept
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr[], Deleter>::my_unique_ptr(std::nullptr_t) noexcept
+iosp::unique_ptr<Ptr[], Deleter>::unique_ptr(std::nullptr_t) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<Deleter>); // deleter must be a nothrow default constructible
     pointer = nullptr;
@@ -227,14 +235,14 @@ my_unique_ptr<Ptr[], Deleter>::my_unique_ptr(std::nullptr_t) noexcept
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr[], Deleter>::my_unique_ptr(Ptr* _Ptr) noexcept
+iosp::unique_ptr<Ptr[], Deleter>::unique_ptr(Ptr* _Ptr) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<Deleter>); // deleter must be a nothrow default constructible
     pointer = _Ptr;
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr[], Deleter>::my_unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) noexcept
+iosp::unique_ptr<Ptr[], Deleter>::unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) noexcept
 {
     static_assert(std::is_nothrow_copy_constructible_v<Deleter>); // deleter must be a nothrow copy constructible
     pointer = _Ptr;
@@ -242,7 +250,7 @@ my_unique_ptr<Ptr[], Deleter>::my_unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) no
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr[], Deleter>::my_unique_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept
+iosp::unique_ptr<Ptr[], Deleter>::unique_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept
 {
     static_assert(std::is_nothrow_move_constructible_v<Deleter>); // deleter must be a nothrow move constructible
     pointer = _Ptr;
@@ -250,7 +258,7 @@ my_unique_ptr<Ptr[], Deleter>::my_unique_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcep
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr[], Deleter>::my_unique_ptr(my_unique_ptr&& u) noexcept
+iosp::unique_ptr<Ptr[], Deleter>::unique_ptr(unique_ptr&& u) noexcept
 {
     static_assert(std::is_nothrow_move_constructible_v<decltype(u.deleter)>); // deleter must be a nothrow move constructible
     pointer = u.pointer;
@@ -259,14 +267,14 @@ my_unique_ptr<Ptr[], Deleter>::my_unique_ptr(my_unique_ptr&& u) noexcept
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr[], Deleter>::~my_unique_ptr()
+iosp::unique_ptr<Ptr[], Deleter>::~unique_ptr()
 {
     if(pointer)
         deleter(pointer);
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr[], Deleter>::operator=(my_unique_ptr&& u) noexcept -> my_unique_ptr&
+auto iosp::unique_ptr<Ptr[], Deleter>::operator=(unique_ptr&& u) noexcept -> unique_ptr&
 {
     static_assert(std::is_nothrow_move_constructible_v<decltype(u.deleter)>); // deleter must be a nothrow move constructible
     if(this != &u) {
@@ -279,38 +287,38 @@ auto my_unique_ptr<Ptr[], Deleter>::operator=(my_unique_ptr&& u) noexcept -> my_
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr[], Deleter>::operator=(std::nullptr_t) noexcept -> my_unique_ptr&
+auto iosp::unique_ptr<Ptr[], Deleter>::operator=(std::nullptr_t) noexcept -> unique_ptr&
 {
     reset(pointer);
     return *this;
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr[], Deleter>::operator[](size_t i) const -> Ptr&
+auto iosp::unique_ptr<Ptr[], Deleter>::operator[](size_t i) const -> Ptr&
 {
     return pointer[i];
 }
 
 template <typename Ptr, typename Deleter>
-my_unique_ptr<Ptr[], Deleter>::operator bool() const noexcept
+iosp::unique_ptr<Ptr[], Deleter>::operator bool() const noexcept
 {
     return pointer != nullptr;
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr[], Deleter>::get() const noexcept -> Ptr*
+auto iosp::unique_ptr<Ptr[], Deleter>::get() const noexcept -> Ptr*
 {
     return pointer;
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr[], Deleter>::get_deleter() const noexcept -> const Deleter&
+auto iosp::unique_ptr<Ptr[], Deleter>::get_deleter() const noexcept -> const Deleter&
 {
     return deleter;
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr[], Deleter>::reset(Ptr* _Ptr) noexcept -> void
+auto iosp::unique_ptr<Ptr[], Deleter>::reset(Ptr* _Ptr) noexcept -> void
 {
     if(pointer)
         deleter(pointer);
@@ -318,7 +326,7 @@ auto my_unique_ptr<Ptr[], Deleter>::reset(Ptr* _Ptr) noexcept -> void
 }
 
 template <typename Ptr, typename Deleter>
-auto my_unique_ptr<Ptr[], Deleter>::release() noexcept -> Ptr*
+auto iosp::unique_ptr<Ptr[], Deleter>::release() noexcept -> Ptr*
 {
     Ptr* ptr = pointer;
     pointer = nullptr;

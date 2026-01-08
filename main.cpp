@@ -26,10 +26,10 @@ int main()
 {
     _Deleter dl;
     // my_unique_ptr<A, decltype(&deleter)> p{new A, &deleter};
-    my_unique_ptr<A, _Deleter> p(new A(1,2,'a'), dl);
+    iosp::unique_ptr<A, _Deleter> p(new A(1,2,'a'), dl);
     // *p = {1,2,'a'};
 
-    my_unique_ptr<int> _p = make_unique<int>(15); // make_unique doesn't support custom deleters
+    iosp::unique_ptr<int> _p = iosp::make_unique<int>(15); // make_unique doesn't support custom deleters
 
     std::cout << p->b << std::endl;
     std::cout << p << std::endl;
@@ -37,8 +37,8 @@ int main()
     if(!p)
         std::cout << "no p" << std::endl;
     
-    my_unique_ptr<int> p1{new int(10)};
-    my_unique_ptr<int> p2{new int(20)};
+    iosp::unique_ptr<int> p1{new int(10)};
+    iosp::unique_ptr<int> p2{new int(20)};
 
     // _p.get(); !warning
 
