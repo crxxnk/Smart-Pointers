@@ -1,6 +1,7 @@
 #include "unique_ptr.h"
 #include <memory>
 #include "make_unique.h"
+#include "shared_ptr.h"
 
 struct A {
     int x,y;
@@ -17,8 +18,8 @@ struct _Deleter {
     }
 };
 
-void deleter(A* a) {
-    std::cout << "Custom deleter" << std::endl;
+void deleter(int* a) {
+    std::cout << "Custom deleter(int)" << std::endl;
     delete a;
 }
 
@@ -40,6 +41,11 @@ int main()
     iosp::unique_ptr<int> p1{new int(10)};
     iosp::unique_ptr<int> p2{new int(20)};
 
+    iosp::shared_ptr<int> sharedptr{new int, deleter};
+    std::cout << "use count:" << sharedptr.use_count() << std::endl;
+    iosp::shared_ptr<int> sharedptr2{sharedptr};
+    std::cout << "use count:" << sharedptr.use_count() << std::endl;
+
     // _p.get(); !warning
 
     std::cout << *_p << std::endl;
@@ -50,6 +56,12 @@ int main()
 
     std::cout << *p1 << std::endl;
     std::cout << *p2 << std::endl;
+
+    iosp::unique_ptr<int[]> p_arr(new int[3]);
+    for(size_t i = 0; i < 3; i++) {
+        p_arr[i] = i+1;
+        std::cout << p_arr[i] << std::endl;
+    }
 
     return 0;
 }
