@@ -45,6 +45,7 @@ int main()
     std::cout << "use count:" << sharedptr.use_count() << std::endl;
     iosp::shared_ptr<int> sharedptr2{sharedptr};
     std::cout << "use count:" << sharedptr.use_count() << std::endl;
+    sharedptr2.get();
 
     // _p.get(); !warning
 

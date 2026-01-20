@@ -38,12 +38,15 @@ public:
     // Constructors && Destructor
     shared_ptr() noexcept;
     shared_ptr(std::nullptr_t) noexcept;
+
     template<typename Y>
-    explicit shared_ptr(Y* _Ptr) noexcept;
+    explicit shared_ptr(Y* _Ptr);
     template<typename Y, typename Deleter>
-    shared_ptr(Y* _Ptr, Deleter _Dltr) noexcept;
+    shared_ptr(Y* _Ptr, Deleter _Dltr);
+    template<typename Deleter>
+    shared_ptr(std::nullptr_t _Ptr, Deleter _Dltr);
     // shared_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept;
-    shared_ptr( const shared_ptr& s) noexcept;
+    shared_ptr(const shared_ptr& s) noexcept;
     shared_ptr(shared_ptr&& u) noexcept;
     ~shared_ptr();
     
@@ -79,7 +82,7 @@ iosp::shared_ptr<Ptr>::shared_ptr(std::nullptr_t) noexcept
 
 template <typename Ptr>
 template <typename Y>
-iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr) noexcept
+iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr)
 {
     static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
     pointer = _Ptr;
@@ -92,15 +95,20 @@ iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr) noexcept
 
 template <typename Ptr>
 template <typename Y, typename Deleter>
-iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr, Deleter _Dltr) noexcept
+iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr, Deleter _Dltr)
 {
-    static_assert(std::is_nothrow_copy_constructible_v<Deleter>);
+    static_assert(std::is_nothrow_move_constructible_v<Deleter>);
     pointer = _Ptr;
+    rc = new ptr_base<Ptr, Deleter>(_Ptr, std::move(_Dltr));
+}
 
-    if(_Ptr)
-        rc = new ptr_base<Ptr, Deleter>(_Ptr, _Dltr);
-    else
-        rc = nullptr;
+template <typename Ptr>
+template <typename Deleter>
+iosp::shared_ptr<Ptr>::shared_ptr(std::nullptr_t _Ptr, Deleter _Dltr)
+{
+    static_assert(std::is_nothrow_move_constructible_v<Deleter>);
+    pointer = nullptr;
+    rc = new ptr_base<Ptr, Deleter>(nullptr, std::move(_Dltr));
 }
 
 template <typename Ptr>
