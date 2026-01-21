@@ -2,38 +2,51 @@
 #include <type_traits>
 #include <atomic>
 #include <memory>
+#include "is_allocator.h"
 
 namespace iosp { // implementation of smart pointers
     template<typename Ptr>
     class shared_ptr;
 }
 
-struct ref_count_base
+struct control_block
 {
     std::atomic_size_t strong_ref{1};
     std::atomic_size_t weak_ref{0};
-    virtual ~ref_count_base() = default;
+    virtual ~control_block() = default;
     virtual auto destroy() -> void = 0;
-    ref_count_base() = default;
-    ref_count_base(const ref_count_base&) = delete;
-    ref_count_base& operator=(const ref_count_base&) = delete;
+    control_block() = default;
+    control_block(const control_block&) = delete;
+    control_block& operator=(const control_block&) = delete;
 };
 
-template<typename Ptr, typename Deleter = std::default_delete<Ptr>>
-struct ptr_base : public ref_count_base
+template<typename Ptr, typename Deleter = std::default_delete<Ptr>, typename Allocator = void>
+struct ptr_base : public control_block
 {
     Ptr* pointer;
     Deleter deleter;
+    
+    using Alloc = std::conditional_t<std::is_void_v<Allocator>, std::allocator<ptr_base>, Allocator>;
+    Alloc allocator;
 
-    ptr_base(Ptr* p, Deleter d) : pointer(p), deleter(std::move(d)) {}
-    void destroy() override { if(pointer) deleter(pointer); };
+    ptr_base(Ptr* p, Deleter d, Alloc a = Alloc() /*Default allocator*/) : pointer(p), deleter(std::move(d)), allocator(std::move(a)) {}
+    void destroy() override {
+        if(pointer) {
+            deleter(pointer);
+            pointer = nullptr;
+        }
+
+        using _Alloc_Traits = std::allocator_traits<Alloc>;
+        _Alloc_Traits::destroy(allocator, this);
+        _Alloc_Traits::deallocate(allocator, this, 1);
+    }
 };
 
 template<typename Ptr>
 class iosp::shared_ptr
 {
     Ptr* pointer;
-    ref_count_base* rc;
+    control_block* cb;
 public:
     // Constructors && Destructor
     shared_ptr() noexcept;
@@ -45,7 +58,8 @@ public:
     shared_ptr(Y* _Ptr, Deleter _Dltr);
     template<typename Deleter>
     shared_ptr(std::nullptr_t _Ptr, Deleter _Dltr);
-    // shared_ptr(Ptr* _Ptr, Deleter&& _Dltr) noexcept;
+    template<typename Y, typename Deleter, typename Allocator>
+    shared_ptr(Y* _Ptr, Deleter _Dltr, Allocator _Alloc); // Custom allocator for the control block
     shared_ptr(const shared_ptr& s) noexcept;
     shared_ptr(shared_ptr&& u) noexcept;
     ~shared_ptr();
@@ -88,9 +102,9 @@ iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr)
     pointer = _Ptr;
 
     if(_Ptr)
-        rc = new ptr_base<Ptr>(_Ptr, std::default_delete<Ptr>{});
+        cb = new ptr_base<Ptr>(_Ptr, std::default_delete<Ptr>{});
     else
-        rc = nullptr;
+        cb = nullptr;
 }
 
 template <typename Ptr>
@@ -99,7 +113,7 @@ iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr, Deleter _Dltr)
 {
     static_assert(std::is_nothrow_move_constructible_v<Deleter>);
     pointer = _Ptr;
-    rc = new ptr_base<Ptr, Deleter>(_Ptr, std::move(_Dltr));
+    cb = new ptr_base<Ptr, Deleter>(_Ptr, std::move(_Dltr));
 }
 
 template <typename Ptr>
@@ -108,24 +122,43 @@ iosp::shared_ptr<Ptr>::shared_ptr(std::nullptr_t _Ptr, Deleter _Dltr)
 {
     static_assert(std::is_nothrow_move_constructible_v<Deleter>);
     pointer = nullptr;
-    rc = new ptr_base<Ptr, Deleter>(nullptr, std::move(_Dltr));
+    cb = new ptr_base<Ptr, Deleter>(nullptr, std::move(_Dltr));
+}
+
+template <typename Ptr>
+template <typename Y, typename Deleter, typename Allocator>
+iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr, Deleter _Dltr, Allocator _Alloc)
+{
+    static_assert(iosp::is_allocator<Allocator>::value);
+
+    using _CB = ptr_base<Ptr, Deleter>;
+    using _Alloc_CB = typename std::allocator_traits<Allocator>::template rebind_alloc<_CB>; // custom allocator is converted to now allocate the control block
+    
+    _Alloc_CB alloc_cb(_Alloc);
+    _CB* mem = alloc_cb.allocate(1); // allocators only allocate raw memory and do not construct an object
+    try {
+        cb = new (mem) _CB(_Ptr, std::move(_Dltr)); // constructs a control_block object on top of the allocated memory
+        pointer = _Ptr;
+    } catch(...) {
+        alloc_cb.deallocate(mem, 1);
+        throw;
+    }
 }
 
 template <typename Ptr>
 iosp::shared_ptr<Ptr>::shared_ptr(const shared_ptr &s) noexcept
 {
     pointer = s.pointer;
-    rc = s.rc;
-    if(rc)
-        rc->strong_ref.fetch_add(1);
+    cb = s.cb;
+    if(cb)
+        cb->strong_ref.fetch_add(1);
 }
 
 template <typename Ptr>
 iosp::shared_ptr<Ptr>::~shared_ptr()
 {
-    if(rc && rc->strong_ref.fetch_sub(1) == 1) {
-        rc->destroy();
-        delete rc;
+    if(cb && cb->strong_ref.fetch_sub(1) == 1) {
+        cb->destroy();
     }
 }
 
@@ -138,11 +171,11 @@ auto iosp::shared_ptr<Ptr>::get() const noexcept -> Ptr*
 template <typename Ptr>
 auto iosp::shared_ptr<Ptr>::unique() const noexcept -> bool
 {
-    return rc->strong_ref == 1 ? true : false;
+    return cb->strong_ref == 1 ? true : false;
 }
 
 template <typename Ptr>
 auto iosp::shared_ptr<Ptr>::use_count() const noexcept -> std::size_t
 {
-    return rc ? rc->strong_ref.load() : 0;
+    return cb ? cb->strong_ref.load() : 0;
 }
