@@ -26,10 +26,10 @@ struct ptr_base : public control_block
     Ptr* pointer;
     Deleter deleter;
     
-    using Alloc = std::conditional_t<std::is_void_v<Allocator>, std::allocator<ptr_base>, Allocator>;
+    using Alloc = typename std::conditional_t<std::is_void_v<Allocator>, std::allocator<ptr_base>, typename std::allocator_traits<Allocator>::template rebind_alloc<ptr_base<Ptr, Deleter, Allocator>>>;
     Alloc allocator;
 
-    ptr_base(Ptr* p, Deleter d, Alloc a = Alloc() /*Default allocator*/) : pointer(p), deleter(std::move(d)), allocator(std::move(a)) {}
+    ptr_base(Ptr* p, Deleter d, Alloc a = Alloc()/*Default allocator*/) : pointer(p), deleter(std::move(d)), allocator(std::move(a)) {}
     void destroy() override {
         if(pointer) {
             deleter(pointer);
@@ -131,13 +131,13 @@ iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr, Deleter _Dltr, Allocator _Alloc)
 {
     static_assert(iosp::is_allocator<Allocator>::value);
 
-    using _CB = ptr_base<Ptr, Deleter>;
+    using _CB = ptr_base<Ptr, Deleter, Allocator>;
     using _Alloc_CB = typename std::allocator_traits<Allocator>::template rebind_alloc<_CB>; // custom allocator is converted to now allocate the control block
-    
+
     _Alloc_CB alloc_cb(_Alloc);
-    _CB* mem = alloc_cb.allocate(1); // allocators only allocate raw memory and do not construct an object
+    _CB* mem = std::allocator_traits<_Alloc_CB>::allocate(alloc_cb, 1); // allocators only allocate raw memory and do not construct an object
     try {
-        cb = new (mem) _CB(_Ptr, std::move(_Dltr)); // constructs a control_block object on top of the allocated memory
+        cb = new (mem) _CB(_Ptr, std::move(_Dltr), alloc_cb); // constructs a control_block object on top of the allocated memory
         pointer = _Ptr;
     } catch(...) {
         alloc_cb.deallocate(mem, 1);

@@ -23,6 +23,30 @@ void deleter(int* a) {
     delete a;
 }
 
+template<typename T>
+struct Custom_Allocator
+{
+    using value_type = T;
+    Custom_Allocator() = default;
+
+    template<typename U>
+    Custom_Allocator(const Custom_Allocator<U>&) {}
+
+    T* allocate(std::size_t n) {
+        std::cout << "Allocating " << n << " objects\n";
+        return static_cast<T*>(::operator new(n*sizeof(T)));
+    }
+
+    void deallocate(T* p, std::size_t n) {
+        std::cout << "Deallocating " << n << " objects\n";
+        ::operator delete(p);
+    }
+
+    void destroy(T* p) {
+        p->~T();
+    }
+};
+
 int main()
 {
     _Deleter dl;
@@ -41,7 +65,9 @@ int main()
     iosp::unique_ptr<int> p1{new int(10)};
     iosp::unique_ptr<int> p2{new int(20)};
 
-    iosp::shared_ptr<int> sharedptr{new int, deleter};
+    Custom_Allocator<control_block> alloc;
+
+    iosp::shared_ptr<int> sharedptr{new int, deleter, alloc};
     std::cout << "use count:" << sharedptr.use_count() << std::endl;
     iosp::shared_ptr<int> sharedptr2{sharedptr};
     std::cout << "use count:" << sharedptr.use_count() << std::endl;
