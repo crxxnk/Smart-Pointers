@@ -1,6 +1,5 @@
 #include "unique_ptr.h"
 #include <memory>
-#include "make_unique.h"
 #include "shared_ptr.h"
 
 struct A {
@@ -71,6 +70,12 @@ int main()
     std::cout << "use count:" << sharedptr.use_count() << std::endl;
     iosp::shared_ptr<int> sharedptr2{sharedptr};
     std::cout << "use count:" << sharedptr.use_count() << std::endl;
+    iosp::shared_ptr<int> sharedptr3{nullptr, deleter, alloc};
+
+    std::cout << "coktr" << sizeof(control_block) << std::endl;
+
+    iosp::shared_ptr<int> sharedptr4 = iosp::make_shared<int>(19);
+    std::cout << *sharedptr4 << std::endl;
 
     // _p.get(); !warning
 
