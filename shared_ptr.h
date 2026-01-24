@@ -2,7 +2,6 @@
 #include <type_traits>
 #include <atomic>
 #include <memory>
-#include "is_allocator.h"
 
 #define DEBUG
 
@@ -96,6 +95,9 @@ class iosp::shared_ptr
 {
     Ptr* pointer;
     control_block* cb;
+
+    template<typename>
+    friend class shared_ptr; // Every instantiation of shared_ptr is a friend of every other instantiation
 public:
     // Constructors && Destructor
     shared_ptr() noexcept;
@@ -114,7 +116,10 @@ public:
     shared_ptr(Y* _Ptr, Deleter _Dltr, Allocator _Alloc); // Custom allocator for the control block
     
     template<typename Deleter, typename Allocator>
-    shared_ptr(std::nullptr_t ptr, Deleter _Dltr, Allocator _Alloc);
+    shared_ptr(std::nullptr_t _Ptr, Deleter _Dltr, Allocator _Alloc);
+
+    template<typename Y>
+    shared_ptr(const shared_ptr<Y>& s, Ptr* _Ptr) noexcept;
 
     shared_ptr(const shared_ptr& s) noexcept;
     shared_ptr(shared_ptr&& u) noexcept;
@@ -139,8 +144,14 @@ public:
     _NODISCARD auto unique() const noexcept -> bool;
     _NODISCARD auto use_count() const noexcept -> std::size_t;
     // _NODISCARD auto get_deleter() const noexcept -> const Deleter&;
-    auto release() noexcept -> Ptr*;
-    auto reset(Ptr* _Ptr = nullptr) noexcept -> void;
+    auto reset() noexcept -> void;
+    template <typename Y>
+    auto reset(Y* _Ptr) -> void;
+    template<typename Y, typename Deleter>
+    auto reset(Y* _Ptr, Deleter, _Dltr) -> void;
+    template<typename Y, typename Deleter, typename Allocator>
+    auto reset(Y* _Ptr, Deleter _Dltr, Allocator _Alloc) -> void;
+
     auto swap(shared_ptr& other) noexcept -> void;
 };
 
@@ -191,7 +202,7 @@ template <typename Ptr>
 template <typename Y, typename Deleter, typename Allocator>
 iosp::shared_ptr<Ptr>::shared_ptr(Y* _Ptr, Deleter _Dltr, Allocator _Alloc)
 {
-    static_assert(iosp::is_allocator<Allocator>::value);
+    static_assert(is_allocator<Allocator>::value);
 
     using _CB = object_owner<Ptr, Deleter, Allocator>;
     std::cout << "size of ptr_base " << sizeof(_CB) << std::endl;
@@ -213,9 +224,9 @@ iosp::shared_ptr<Ptr>::shared_ptr(Y* _Ptr, Deleter _Dltr, Allocator _Alloc)
 
 template <typename Ptr>
 template <typename Deleter, typename Allocator>
-iosp::shared_ptr<Ptr>::shared_ptr(std::nullptr_t ptr, Deleter _Dltr, Allocator _Alloc)
+iosp::shared_ptr<Ptr>::shared_ptr(std::nullptr_t _Ptr, Deleter _Dltr, Allocator _Alloc)
 {
-    static_assert(iosp::is_allocator<Allocator>::value);
+    static_assert(is_allocator<Allocator>::value);
 
     using _CB = object_owner<Ptr, Deleter, Allocator>;
     using _Alloc_CB = typename std::allocator_traits<Allocator>::template rebind_alloc<_CB>;
@@ -229,6 +240,16 @@ iosp::shared_ptr<Ptr>::shared_ptr(std::nullptr_t ptr, Deleter _Dltr, Allocator _
         std::allocator_traits<_Alloc_CB>::deallocate(alloc_cb, mem, 1);
         throw;
     }
+}
+
+template <typename Ptr>
+template <typename Y>
+iosp::shared_ptr<Ptr>::shared_ptr(const shared_ptr<Y>& s, Ptr* _Ptr) noexcept
+{
+    pointer = ptr;
+    cb = s.cb;
+    if(cb)
+        cb->strong_ref.fetch_add(1);
 }
 
 template <typename Ptr>
@@ -255,7 +276,19 @@ auto iosp::shared_ptr<Ptr>::operator*() const noexcept -> Ptr&
 }
 
 template <typename Ptr>
-auto iosp::shared_ptr<Ptr>::get() const noexcept -> Ptr *
+auto iosp::shared_ptr<Ptr>::operator->() const noexcept -> Ptr*
+{
+    return pointer;
+}
+
+template <typename Ptr>
+iosp::shared_ptr<Ptr>::operator bool() const noexcept
+{
+    return pointer != nullptr;
+}
+
+template <typename Ptr>
+auto iosp::shared_ptr<Ptr>::get() const noexcept -> Ptr*
 {
     return pointer;
 }
@@ -270,4 +303,16 @@ template <typename Ptr>
 auto iosp::shared_ptr<Ptr>::use_count() const noexcept -> std::size_t
 {
     return cb ? cb->strong_ref.load() : 0;
+}
+
+template <typename Ptr>
+auto iosp::shared_ptr<Ptr>::reset() noexcept -> void
+{
+
+}
+
+template <typename Ptr>
+auto iosp::shared_ptr<Ptr>::swap(shared_ptr &other) noexcept -> void
+{
+
 }

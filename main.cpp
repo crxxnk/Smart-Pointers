@@ -46,6 +46,14 @@ struct Custom_Allocator
     }
 };
 
+struct Bar { 
+    int cock;
+};
+
+struct Foo {
+    Bar bar;
+};
+
 int main()
 {
     _Deleter dl;
@@ -76,6 +84,11 @@ int main()
 
     iosp::shared_ptr<int> sharedptr4 = iosp::make_shared<int>(19);
     std::cout << *sharedptr4 << std::endl;
+
+    iosp::shared_ptr<Foo> f = iosp::make_shared<Foo>(Bar(10));
+    iosp::shared_ptr<Bar> specific_data(f, &f->bar);
+
+    std::cout << "Aliasing use count" << f.use_count() << std::endl;
 
     // _p.get(); !warning
 
