@@ -2,6 +2,8 @@
 #include <type_traits>
 #include <atomic>
 #include <memory>
+#include <iostream>
+#include "weak_ptr.hpp"
 
 #define DEBUG
 
@@ -48,6 +50,7 @@ struct make_shared_control_block : control_block
     void destroy() {
         T* obj = reinterpret_cast<T*>(reinterpret_cast<char*>(this) + sizeof(make_shared_control_block));
         obj->~T();
+        this->~control_block();
         ::operator delete(this);
     }
 };
@@ -98,6 +101,7 @@ class iosp::shared_ptr
 
     template<typename>
     friend class shared_ptr; // Every instantiation of shared_ptr is a friend of every other instantiation
+
 public:
     // Constructors && Destructor
     shared_ptr() noexcept;
@@ -119,10 +123,20 @@ public:
     shared_ptr(std::nullptr_t _Ptr, Deleter _Dltr, Allocator _Alloc);
 
     template<typename Y>
-    shared_ptr(const shared_ptr<Y>& s, Ptr* _Ptr) noexcept;
+    shared_ptr(const shared_ptr<Y>& s, Ptr* _Ptr) noexcept; // Aliasing constructor
 
     shared_ptr(const shared_ptr& s) noexcept;
-    shared_ptr(shared_ptr&& u) noexcept;
+    shared_ptr(shared_ptr&& s) noexcept;
+
+    template<typename Y>
+    shared_ptr(shared_ptr<Y>&& s) noexcept;
+
+    // template<typename Y>
+    // explicit shared_ptr(const iosp::weak_ptr<Y>& w) = delete; //! NOT IMPLEMENTED YET
+
+    template<typename Y, typename Deleter>
+    shared_ptr(iosp::unique_ptr<Y, Deleter>&& u);
+
     ~shared_ptr();
 
 private:
@@ -132,9 +146,9 @@ private:
     friend auto iosp::make_shared(Args&&... args) -> iosp::shared_ptr<T>;
 public:
     // Operators
-    auto operator=(shared_ptr&& u) noexcept -> shared_ptr&;
+    auto operator=(shared_ptr&& s) noexcept -> shared_ptr&;
     auto operator=(std::nullptr_t) noexcept -> shared_ptr&;
-    auto operator=(const shared_ptr&) -> shared_ptr& = delete;
+    auto operator=(const shared_ptr& s) -> shared_ptr&;
     _NODISCARD auto operator*() const noexcept -> Ptr&;
     _NODISCARD auto operator->() const noexcept -> Ptr*;
     explicit operator bool() const noexcept;
@@ -148,7 +162,7 @@ public:
     template <typename Y>
     auto reset(Y* _Ptr) -> void;
     template<typename Y, typename Deleter>
-    auto reset(Y* _Ptr, Deleter, _Dltr) -> void;
+    auto reset(Y* _Ptr, Deleter _Dltr) -> void;
     template<typename Y, typename Deleter, typename Allocator>
     auto reset(Y* _Ptr, Deleter _Dltr, Allocator _Alloc) -> void;
 
@@ -185,6 +199,7 @@ template <typename Y, typename Deleter, typename std::enable_if_t<!std::is_base_
 iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr, Deleter _Dltr)
 {
     static_assert(std::is_nothrow_move_constructible_v<Deleter>);
+    static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
     pointer = _Ptr;
     cb = new object_owner<Ptr, Deleter>(_Ptr, std::move(_Dltr));
 }
@@ -202,7 +217,9 @@ template <typename Ptr>
 template <typename Y, typename Deleter, typename Allocator>
 iosp::shared_ptr<Ptr>::shared_ptr(Y* _Ptr, Deleter _Dltr, Allocator _Alloc)
 {
+    static_assert(std::is_nothrow_move_constructible_v<Deleter>);
     static_assert(is_allocator<Allocator>::value);
+    static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
 
     using _CB = object_owner<Ptr, Deleter, Allocator>;
     std::cout << "size of ptr_base " << sizeof(_CB) << std::endl;
@@ -226,6 +243,7 @@ template <typename Ptr>
 template <typename Deleter, typename Allocator>
 iosp::shared_ptr<Ptr>::shared_ptr(std::nullptr_t _Ptr, Deleter _Dltr, Allocator _Alloc)
 {
+    static_assert(std::is_nothrow_move_constructible_v<Deleter>);
     static_assert(is_allocator<Allocator>::value);
 
     using _CB = object_owner<Ptr, Deleter, Allocator>;
@@ -246,7 +264,7 @@ template <typename Ptr>
 template <typename Y>
 iosp::shared_ptr<Ptr>::shared_ptr(const shared_ptr<Y>& s, Ptr* _Ptr) noexcept
 {
-    pointer = ptr;
+    pointer = _Ptr;
     cb = s.cb;
     if(cb)
         cb->strong_ref.fetch_add(1);
@@ -262,6 +280,38 @@ iosp::shared_ptr<Ptr>::shared_ptr(const shared_ptr &s) noexcept
 }
 
 template <typename Ptr>
+iosp::shared_ptr<Ptr>::shared_ptr(shared_ptr&& s) noexcept
+{
+    pointer = s.pointer;
+    cb = s.cb;
+    s.pointer = nullptr;
+    s.cb = nullptr;
+}
+
+template <typename Ptr>
+template<typename Y>
+iosp::shared_ptr<Ptr>::shared_ptr(shared_ptr<Y>&& s) noexcept
+{
+    static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
+    pointer = s.pointer;
+    cb = s.cb;
+    s.pointer = nullptr;
+    s.cb = nullptr;
+}
+
+template <typename Ptr>
+template <typename Y, typename Deleter>
+iosp::shared_ptr<Ptr>::shared_ptr(iosp::unique_ptr<Y, Deleter> &&u)
+{
+    static_assert(std::is_nothrow_move_constructible_v<Deleter>);
+    static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
+
+    auto p = u.release();
+    cb = new object_owner<Ptr, Deleter>(p, std::move(u.get_deleter()));
+    pointer = p;
+}
+
+template <typename Ptr>
 iosp::shared_ptr<Ptr>::~shared_ptr()
 {
     if(cb && cb->strong_ref.fetch_sub(1) == 1) {
@@ -270,7 +320,40 @@ iosp::shared_ptr<Ptr>::~shared_ptr()
 }
 
 template <typename Ptr>
-auto iosp::shared_ptr<Ptr>::operator*() const noexcept -> Ptr&
+auto iosp::shared_ptr<Ptr>::operator=(shared_ptr &&s) noexcept -> shared_ptr&
+{
+    pointer = s.pointer;
+    cb = s.cb;
+    return *this;
+}
+
+template <typename Ptr>
+auto iosp::shared_ptr<Ptr>::operator=(std::nullptr_t) noexcept -> shared_ptr&
+{
+    pointer = nullptr;
+    cb = nullptr;
+    return *this;
+}
+
+template <typename Ptr>
+auto iosp::shared_ptr<Ptr>::operator=(const shared_ptr& s) -> shared_ptr&
+{
+    if(this != &s) {
+        if(cb && cb->strong_ref.fetch_sub(1) == 1)
+            cb->destroy();
+        
+        pointer = s.pointer;
+        cb = s.cb;
+
+        if(cb)
+            cb->strong_ref.fetch_add(1);
+    }
+
+    return *this;
+}
+
+template <typename Ptr>
+auto iosp::shared_ptr<Ptr>::operator*() const noexcept -> Ptr &
 {
     return *pointer;
 }

@@ -1,6 +1,6 @@
-#include "unique_ptr.h"
+#include "unique_ptr.hpp"
 #include <memory>
-#include "shared_ptr.h"
+#include "shared_ptr.hpp"
 
 struct A {
     int x,y;
@@ -76,6 +76,7 @@ int main()
 
     iosp::shared_ptr<int> sharedptr{new int, deleter, alloc};
     std::cout << "use count:" << sharedptr.use_count() << std::endl;
+
     iosp::shared_ptr<int> sharedptr2{sharedptr};
     std::cout << "use count:" << sharedptr.use_count() << std::endl;
     iosp::shared_ptr<int> sharedptr3{nullptr, deleter, alloc};
