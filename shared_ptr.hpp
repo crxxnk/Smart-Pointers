@@ -129,7 +129,7 @@ public:
     shared_ptr(shared_ptr&& s) noexcept;
 
     template<typename Y>
-    shared_ptr(shared_ptr<Y>&& s) noexcept;
+    explicit shared_ptr(shared_ptr<Y>&& s) noexcept;
 
     // template<typename Y>
     // explicit shared_ptr(const iosp::weak_ptr<Y>& w) = delete; //! NOT IMPLEMENTED YET
@@ -146,9 +146,15 @@ private:
     friend auto iosp::make_shared(Args&&... args) -> iosp::shared_ptr<T>;
 public:
     // Operators
-    auto operator=(shared_ptr&& s) noexcept -> shared_ptr&;
-    auto operator=(std::nullptr_t) noexcept -> shared_ptr&;
     auto operator=(const shared_ptr& s) -> shared_ptr&;
+    template<typename Y>
+    auto operator=(const shared_ptr<Y>& s) noexcept -> shared_ptr&;
+    auto operator=(shared_ptr&& s) noexcept -> shared_ptr&;
+    template<typename Y>
+    auto operator=(shared_ptr<Y>&& s) noexcept -> shared_ptr&;
+    template<typename Y, typename Deleter>
+    auto operator=(unique_ptr<Y, Deleter>&& u) -> shared_ptr&;
+
     _NODISCARD auto operator*() const noexcept -> Ptr&;
     _NODISCARD auto operator->() const noexcept -> Ptr*;
     explicit operator bool() const noexcept;
@@ -307,8 +313,13 @@ iosp::shared_ptr<Ptr>::shared_ptr(iosp::unique_ptr<Y, Deleter> &&u)
     static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
 
     auto p = u.release();
-    cb = new object_owner<Ptr, Deleter>(p, std::move(u.get_deleter()));
-    pointer = p;
+    try {
+        cb = new object_owner<Ptr, Deleter>(p, std::move(u.get_deleter()));
+        pointer = p;
+    } catch (...) {
+        u.get_deleter()(p);
+        throw;
+    }
 }
 
 template <typename Ptr>
@@ -317,22 +328,6 @@ iosp::shared_ptr<Ptr>::~shared_ptr()
     if(cb && cb->strong_ref.fetch_sub(1) == 1) {
         cb->destroy();
     }
-}
-
-template <typename Ptr>
-auto iosp::shared_ptr<Ptr>::operator=(shared_ptr &&s) noexcept -> shared_ptr&
-{
-    pointer = s.pointer;
-    cb = s.cb;
-    return *this;
-}
-
-template <typename Ptr>
-auto iosp::shared_ptr<Ptr>::operator=(std::nullptr_t) noexcept -> shared_ptr&
-{
-    pointer = nullptr;
-    cb = nullptr;
-    return *this;
 }
 
 template <typename Ptr>
@@ -353,7 +348,78 @@ auto iosp::shared_ptr<Ptr>::operator=(const shared_ptr& s) -> shared_ptr&
 }
 
 template <typename Ptr>
-auto iosp::shared_ptr<Ptr>::operator*() const noexcept -> Ptr &
+template <typename Y>
+auto iosp::shared_ptr<Ptr>::operator=(const shared_ptr<Y>& s) noexcept -> shared_ptr&
+{
+    static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
+    if(this != &s) {
+        if(cb && cb->strong_ref.fetch_sub(1) == 1)
+            cb->destroy();
+        
+        pointer = s.pointer;
+        cb = s.cb;
+
+        if(cb)
+            cb->strong_ref.fetch_add(1);
+    }
+
+    return *this;
+}
+
+template <typename Ptr>
+auto iosp::shared_ptr<Ptr>::operator=(shared_ptr &&s) noexcept -> shared_ptr&
+{
+    if(this != &s) {
+        if(cb && cb->strong_ref.fetch_sub(1) == 1)
+            cb->destroy();
+        pointer = s.pointer;
+        cb = s.cb;
+    }
+    return *this;
+}
+
+template <typename Ptr>
+template <typename Y>
+auto iosp::shared_ptr<Ptr>::operator=(shared_ptr<Y>&& s) noexcept -> shared_ptr&
+{
+    static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
+    if(this != &s) {
+        if(cb && cb->strong_ref.fetch_sub(1) == 1)
+            cb->destroy();
+        pointer = s.pointer;
+        cb = s.cb;
+
+        s.pointer = nullptr;
+        s.cb = nullptr;
+    }
+    return *this;
+}
+
+template <typename Ptr>
+template <typename Y, typename Deleter>
+auto iosp::shared_ptr<Ptr>::operator=(unique_ptr<Y, Deleter> &&u) -> shared_ptr&
+{
+    static_assert(std::is_nothrow_move_constructible_v<Deleter>);
+    static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
+
+    if(cb && cb->strong_ref.fetch_sub(1) == 1)
+        cb->destroy();
+
+    auto p = u.release();
+    try {
+        cb = new object_owner<Ptr, Deleter>(p, std::move(u.get_deleter()));
+        pointer = p;
+    } catch(...) {
+        u.get_deleter()(p);
+        cb = nullptr;
+        pointer = nullptr;
+        throw;
+    }
+    return *this;
+}
+
+template <typename Ptr>
+auto iosp::shared_ptr<Ptr>::operator*() const noexcept -> Ptr&
 {
     return *pointer;
 }
