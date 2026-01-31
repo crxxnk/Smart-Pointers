@@ -29,6 +29,8 @@ struct is_allocator<A, std::void_t<
 
 struct control_block;
 template<typename Ptr, typename Deleter = std::default_delete<Ptr>, typename Allocator = void>
+struct object_owner_alloc;
+template<typename Ptr, typename Deleter = std::default_delete<Ptr>>
 struct object_owner;
 template<typename T>
 struct make_shared_control_block;
@@ -72,15 +74,15 @@ _NODISCARD auto iosp::make_shared(Args&&... args) -> iosp::shared_ptr<T>
 #endif
 
 template<typename Ptr, typename Deleter, typename Allocator>
-struct object_owner : public control_block
+struct object_owner_alloc : public control_block
 {
     Ptr* pointer;
     Deleter deleter;
     
-    using Alloc = typename std::conditional_t<std::is_void_v<Allocator>, std::allocator<object_owner>, typename std::allocator_traits<Allocator>::template rebind_alloc<object_owner<Ptr, Deleter, Allocator>>>;
+    using Alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<object_owner_alloc<Ptr, Deleter, Allocator>>;
     Alloc allocator;
 
-    object_owner(Ptr* p, Deleter d, Alloc a = Alloc()/*Default allocator*/) : pointer(p), deleter(std::move(d)), allocator(std::move(a)) {}
+    object_owner_alloc(Ptr* p, Deleter d, Alloc a) : pointer(p), deleter(std::move(d)), allocator(std::move(a)) {}
     void destroy() override {
         if(pointer) {
             deleter(pointer);
@@ -90,6 +92,21 @@ struct object_owner : public control_block
         using _Alloc_Traits = std::allocator_traits<Alloc>;
         _Alloc_Traits::destroy(allocator, this);
         _Alloc_Traits::deallocate(allocator, this, 1);
+    }
+};
+
+template<typename Ptr, typename Deleter>
+struct object_owner : public control_block
+{
+    Ptr* pointer;
+    Deleter deleter;
+
+    object_owner(Ptr* p, Deleter d) : pointer(p), deleter(std::move(d)) {}
+    void destroy() override {
+        if(pointer) {
+            deleter(pointer);
+            pointer = nullptr;
+        }
     }
 };
 
@@ -227,7 +244,7 @@ iosp::shared_ptr<Ptr>::shared_ptr(Y* _Ptr, Deleter _Dltr, Allocator _Alloc)
     static_assert(is_allocator<Allocator>::value);
     static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
 
-    using _CB = object_owner<Ptr, Deleter, Allocator>;
+    using _CB = object_owner_alloc<Ptr, Deleter, Allocator>;
     std::cout << "size of ptr_base " << sizeof(_CB) << std::endl;
     using _Alloc_CB = typename std::allocator_traits<Allocator>::template rebind_alloc<_CB>; // custom allocator is converted to now allocate the control block
                                                                                              // creates a new allocator type that has the same behavior as Allocator
@@ -252,7 +269,7 @@ iosp::shared_ptr<Ptr>::shared_ptr(std::nullptr_t _Ptr, Deleter _Dltr, Allocator 
     static_assert(std::is_nothrow_move_constructible_v<Deleter>);
     static_assert(is_allocator<Allocator>::value);
 
-    using _CB = object_owner<Ptr, Deleter, Allocator>;
+    using _CB = object_owner_alloc<Ptr, Deleter, Allocator>;
     using _Alloc_CB = typename std::allocator_traits<Allocator>::template rebind_alloc<_CB>;
 
     _Alloc_CB alloc_cb(_Alloc);

@@ -19,5 +19,6 @@ struct _Deleter {
 };
 
 int main() {
+    iosp::shared_ptr<int>(iosp::unique_ptr<int>(new int(10)));
     
 }

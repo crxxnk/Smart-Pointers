@@ -7,8 +7,6 @@ int main()
 {
     iosp::shared_ptr<int> a = iosp::make_shared<int>(10);
     iosp::shared_ptr<int> _a = iosp::make_shared<int>(11);
-    std::cout << *a << std::endl;
-    std::cout << *_a << std::endl;
 
     std::cout << a.use_count() << std::endl;
     std::cout << _a.use_count() << std::endl;
@@ -18,6 +16,9 @@ int main()
     std::cout << _a.use_count() << std::endl << std::endl;
 
     a = iosp::unique_ptr<int>(new int(15));//iosp::make_unique<int>(15);
+
+    std::cout << a.use_count() << std::endl;
+    std::cout << _a.use_count() << std::endl << std::endl;
 
     std::shared_ptr<int> as = std::make_shared<int>(10);
     std::shared_ptr<int> _as = std::make_shared<int>(11);
