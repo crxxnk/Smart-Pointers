@@ -107,6 +107,8 @@ struct object_owner : public control_block
             deleter(pointer);
             pointer = nullptr;
         }
+
+        delete this;
     }
 };
 
@@ -180,7 +182,10 @@ public:
     _NODISCARD auto get() const noexcept -> Ptr*;
     _NODISCARD auto unique() const noexcept -> bool;
     _NODISCARD auto use_count() const noexcept -> std::size_t;
-    // _NODISCARD auto get_deleter() const noexcept -> const Deleter&;
+    template<typename Y>
+    _NODISCARD auto owner_before(const shared_ptr<Y>& other) const noexcept -> bool;
+    // template<typename Y>
+    // _NODISCARD auto owner_before(const iosp::weak_ptr<Y>& other) const noexcept -> bool; // ! NOT IMPLEMENTED YET
     auto reset() noexcept -> void;
     template <typename Y>
     auto reset(Y* _Ptr) -> void;
@@ -436,6 +441,13 @@ auto iosp::shared_ptr<Ptr>::operator=(unique_ptr<Y, Deleter> &&u) -> shared_ptr&
 }
 
 template <typename Ptr>
+template <typename Y>
+auto iosp::shared_ptr<Ptr>::owner_before(const shared_ptr<Y> &other) const noexcept -> bool
+{
+    return cb < other.cb;
+}
+
+template <typename Ptr>
 auto iosp::shared_ptr<Ptr>::operator*() const noexcept -> Ptr&
 {
     return *pointer;
@@ -474,11 +486,17 @@ auto iosp::shared_ptr<Ptr>::use_count() const noexcept -> std::size_t
 template <typename Ptr>
 auto iosp::shared_ptr<Ptr>::reset() noexcept -> void
 {
-
+    if(cb) {
+        if(cb->strong_ref.fetch_sub(1) == 1) {
+            cb->destroy();
+        }
+        cb = nullptr;
+    }
 }
 
 template <typename Ptr>
 auto iosp::shared_ptr<Ptr>::swap(shared_ptr &other) noexcept -> void
 {
-
+    std::swap(pointer, other.pointer);
+    std::swap(cb, other.cb);
 }
