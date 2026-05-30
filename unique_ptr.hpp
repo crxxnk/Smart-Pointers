@@ -193,6 +193,8 @@ auto iosp::unique_ptr<Ptr, Deleter>::release() noexcept -> Ptr*
 template <typename Ptr, typename Deleter>
 auto iosp::unique_ptr<Ptr, Deleter>::reset(Ptr* _Ptr) noexcept -> void
 {
+    if(pointer == _Ptr) return;
+    
     if(pointer)
         deleter(pointer);
     pointer = _Ptr;
@@ -264,7 +266,7 @@ iosp::unique_ptr<Ptr[], Deleter>::unique_ptr(Ptr* _Ptr, const Deleter& _Dltr) no
 {
     static_assert(std::is_nothrow_copy_constructible_v<Deleter>); // deleter must be a nothrow copy constructible
     pointer = _Ptr;
-    deleter = std::move(_Dltr);
+    deleter = _Dltr;
 }
 
 template <typename Ptr, typename Deleter>

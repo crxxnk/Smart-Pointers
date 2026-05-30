@@ -216,8 +216,14 @@ iosp::shared_ptr<Ptr>::shared_ptr(Y *_Ptr)
     static_assert(std::is_convertible_v<Y*, Ptr*>, "Pointer type must be convertible to Ptr*");
     pointer = _Ptr;
 
-    if(_Ptr)
-        cb = new object_owner<Ptr>(_Ptr, std::default_delete<Ptr>{});
+    if(_Ptr) {
+        try {
+            cb = new object_owner<Ptr>(_Ptr, std::default_delete<Ptr>{});
+        } catch(...) {
+            delete _Ptr;
+            throw;
+        }
+    }
     else
         cb = nullptr;
 }
@@ -381,6 +387,9 @@ auto iosp::shared_ptr<Ptr>::operator=(const shared_ptr<Y>& s) noexcept -> shared
         pointer = s.pointer;
         cb = s.cb;
 
+        s.pointer = nullptr;
+        s.cb = nullptr;
+
         if(cb)
             cb->strong_ref.fetch_add(1);
     }
@@ -396,6 +405,9 @@ auto iosp::shared_ptr<Ptr>::operator=(shared_ptr &&s) noexcept -> shared_ptr&
             cb->destroy();
         pointer = s.pointer;
         cb = s.cb;
+
+        s.pointer = nullptr;
+        s.cb = nullptr;
     }
     return *this;
 }
@@ -474,6 +486,7 @@ auto iosp::shared_ptr<Ptr>::get() const noexcept -> Ptr*
 template <typename Ptr>
 auto iosp::shared_ptr<Ptr>::unique() const noexcept -> bool
 {
+    if (!cb) return false;
     return cb->strong_ref == 1 ? true : false;
 }
 

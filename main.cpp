@@ -65,7 +65,7 @@ int main()
 
     std::cout << p->b << std::endl;
     std::cout << p << std::endl;
-    // p.reset();
+    p.reset();
     if(!p)
         std::cout << "no p" << std::endl;
     
