@@ -1,7 +1,7 @@
 Markdown
 # Smart-Pointers
 
-A lightweight, standard-compliant, header-only implementation of custom smart pointers (`unique_ptr` and `shared_ptr`) written in modern C++ (C++17/20). This project focuses on low-level systems programming techniques, featuring optimized single-allocation mechanics for `make_shared`, type-erased control blocks, and custom allocator support via template allocator rebinding.
+A lightweight, standard-compliant, header-only implementation of custom smart pointers (`unique_ptr` and `shared_ptr`) written in modern C++ (C++17/20). This project focuses on first-principles systems programming, featuring optimized single-allocation mechanics for `make_shared`, strict memory alignment handling, type-erased control blocks, and custom allocator support via template allocator rebinding.
 
 ## 🚀 Key Features
 
@@ -9,18 +9,17 @@ A lightweight, standard-compliant, header-only implementation of custom smart po
 * **Polymorphic Control Blocks**: A robust `shared_ptr` architecture that utilizes dynamic type erasure to isolate pointer metadata from standard operations.
 * **Optimized `make_shared`**: Implements single-allocation memory packing to guarantee spatial cache locality and eliminate redundant kernel heap requests.
 * **Allocator Awareness**: Full integration with `std::allocator_traits` to redirect internal control block metadata mapping into custom memory pools or arenas.
-* **Thread-Safe Reference Counting**: Powered by lock-free `std::atomic_size_t` structures for thread-safe ownership tracking.
+* **Thread-Safe Reference Counting**: Powered by lock-free, atomic reference tracking (`std::atomic_size_t`) to eliminate race conditions across multi-threaded environments.
 
 ---
 
 ## 📐 Memory Architecture
 
-The library implements two distinct memory topologies underneath the hood based on construction semantics:
+The library implements two distinct memory topologies underneath the hood based on construction semantics to balance flexibility and performance:
 
 ### 1. Split Allocation (`shared_ptr<T>(new T)`)
 When a raw heap pointer is passed explicitly, ownership is transferred to an internal `object_owner` control block. This creates two separate allocations on the heap:
 
-```markdown
 ```mermaid
 graph TD
     subgraph Stack [Stack Frame]
@@ -34,14 +33,10 @@ graph TD
 
     SP -->|pointer*| OBJ
     SP -->|cb*| CB
-```
----
+2. Contiguous Contoured Memory (make_shared<T>)
+To optimize cache locality and drop down to a single OS kernel allocation request, make_shared packs the control block headers and the object storage into one contiguous block of bytes:
 
-```markdown
-### 2. Contiguous Contoured Memory (`make_shared<T>`)
-To optimize cache locality and drop down to a single OS kernel allocation request, `make_shared` packs the control block headers and the object storage into one contiguous block of bytes:
-
-```mermaid
+Απόσπασμα κώδικα
 graph LR
     subgraph Stack [Stack Frame]
         SP[iosp::shared_ptr]
@@ -55,24 +50,54 @@ graph LR
 
     SP -->|cb* points to start| CB
     SP -->|pointer* shifts past headers| OBJ
-```
+🛠️ Low-Level Implementations Highlighted
+Type Erasure via Core Abstract Interfaces
+To hide customized behavior from the user-facing shared_ptr<T> class template, the management layer relies on an abstract base interface (control_block). Specific lifecycles are handled through derived polymorphic structs dynamically:
 
----
+Απόσπασμα κώδικα
+classDiagram
+    class control_block {
+        <<Abstract>>
+        +std::atomic_size_t strong_ref
+        +std::atomic_size_t weak_ref
+        +virtual destroy() = 0
+    }
+    class object_owner {
+        +Ptr* pointer
+        +Deleter deleter
+        +destroy() override
+    }
+    class object_owner_alloc {
+        +Ptr* pointer
+        +Deleter deleter
+        +Allocator allocator
+        +destroy() override
+    }
+    class make_shared_control_block {
+        +alignas(T) char storage
+        +destroy() override
+    }
 
-## 🛠️ Low-Level Implementations Highlighted
+    control_block <|-- object_owner : Wakes up for raw pointers
+    control_block <|-- object_owner_alloc : Wakes up for custom allocators
+    control_block <|-- make_shared_control_block : Wakes up for make_shared
+Allocator Rebinding Mechanics
+The implementation utilizes std::allocator_traits::rebind_alloc to dynamically morph incoming allocators typed for generic objects into engine blocks capable of stamping out exact control block structures:
 
-### Type Erasure via Core Abstract Interfaces
-To hide customized behavior from the user-facing `shared_ptr<T>` class template, the management layer relies on an abstract base interface (`control_block`). Specific lifecycles are handled through derived polymorphic structs:
-* `object_owner`: Managed standard heap allocations.
-* `object_owner_alloc`: Routes cleanup mechanics through isolated custom memory systems via template allocator rebinding traits.
-
-### Allocator Rebinding Mechanics
-The implementation utilizes `std::allocator_traits::rebind_alloc` to dynamically morph incoming allocators typed for generic objects into engine blocks capable of stamping out exact control block structures:
-```cpp
+C++
 using Alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<object_owner_alloc<Ptr, Deleter, Allocator>>;
+Strict Resource Protection & Strong Exceptions
+Constructors taking raw pointers are hardened against memory leaks. If allocating the underlying tracking control block fails (std::bad_alloc), the implementation automatically intercepts the failure, destroys the raw pointer to prevent dynamic leaks, and rethrows to ensure incomplete objects never enter the program state:
+
+C++
+try {
+    cb = new object_owner<Ptr>(_Ptr, std::default_delete<Ptr>{});
+} catch (...) { 
+    delete _Ptr; // Prevent resource leaks if control block allocation fails
+    throw;       // Abort construction completely
+}
 💻 Usage Examples
 1. Exclusive Ownership with Unique Pointers
-
 C++
 #include "unique_ptr.hpp"
 #include <iostream>
@@ -91,9 +116,7 @@ int main() {
     iosp::unique_ptr<Vector3D> u2 = std::move(u1); 
     assert(u1.get() == nullptr); 
 }
-
 2. Shared Ownership & Cache-Optimized Creation
-
 C++
 #include "shared_ptr.hpp"
 #include <cassert>
@@ -111,15 +134,12 @@ int main() {
 
     assert(s1.use_count() == 1);
 } // Last counter dropped; memory block freed cleanly
-```
 🔧 Building and Requirements
 Compiler: C++17 compliant compiler or newer (GCC 9+, Clang 10+, MSVC 2019+).
 
 Configuration: This is a header-only library. Simply copy the iosp files directly into your project's include path.
 
-```Bash
+Bash
 # Compilation flags recommendation for validating memory layout integrity
 g++ -std=c++17 -Wall -Wextra main.cpp -o pointer_test
-```
-
 *Note: This repository represents a deep-dive into first-principles C++ systems programming. While the entire codebase is written manually, the technical write-up and memory architecture diagrams were structured with the assistance of AI to ensure optimal clarity and readability.*
