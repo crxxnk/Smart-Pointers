@@ -18,26 +18,44 @@ A lightweight, standard-compliant, header-only implementation of custom smart po
 The library implements two distinct memory topologies underneath the hood based on construction semantics:
 
 ### 1. Split Allocation (`shared_ptr<T>(new T)`)
-When a raw heap pointer is passed explicitly, ownership is transferred to an internal `object_owner` control block. This results in two separate heap blocks:
+When a raw heap pointer is passed explicitly, ownership is transferred to an internal `object_owner` control block. This creates two separate allocations on the heap:
 
-Stack (Local Frame)               Heap (Dynamic Memory)
-+--------------------+             +------------------+
-|   iosp::shared_ptr | ----------> |  Managed Object  | (Raw pointer block)
-|  [ pointer, cb ]   | ----+       +------------------+
-+--------------------+     |       +------------------+
-+-----> |  object_owner    | (Control block counters)
-+------------------+
+```markdown
+```mermaid
+graph TD
+    subgraph Stack [Stack Frame]
+        SP[iosp::shared_ptr]
+    end
 
+    subgraph Heap [Global Heap Memory]
+        OBJ[Managed Object Data<br>Allocated by user via new]
+        CB[object_owner Control Block<br>strong_ref / weak_ref counters]
+    end
 
+    SP -->|pointer*| OBJ
+    SP -->|cb*| CB
+```
+---
+
+```markdown
 ### 2. Contiguous Contoured Memory (`make_shared<T>`)
-To optimize cache locality, `make_shared` allocates a single chunk of memory containing the `make_shared_control_block` and the object data sequentially:
+To optimize cache locality and drop down to a single OS kernel allocation request, `make_shared` packs the control block headers and the object storage into one contiguous block of bytes:
 
-Stack (Local Frame)               Heap (Contiguous Arena Block)
-+--------------------+             +-----------------------------+--------------------+
-|   iosp::shared_ptr | ----------> | make_shared_control_block   |   Object Storage   |
-|  [ pointer, cb ]   |             | [ strong_ref ] [ weak_ref ] |   [ Raw T Bytes ]  |
-+--------------------+             +-----------------------------+--------------------+
+```mermaid
+graph LR
+    subgraph Stack [Stack Frame]
+        SP[iosp::shared_ptr]
+    end
 
+    subgraph Heap Chunk [Single Contiguous Heap Allocation]
+        CB[make_shared_control_block<br>Atomic Reference Counters]
+        PAD[Alignment Padding]
+        OBJ[Object Storage<br>Raw T Bytes]
+    end
+
+    SP -->|cb* points to start| CB
+    SP -->|pointer* shifts past headers| OBJ
+```
 
 ---
 
@@ -55,7 +73,7 @@ using Alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<o
 💻 Usage Examples
 1. Exclusive Ownership with Unique Pointers
 
-```C++
+C++
 #include "unique_ptr.hpp"
 #include <iostream>
 
@@ -73,9 +91,10 @@ int main() {
     iosp::unique_ptr<Vector3D> u2 = std::move(u1); 
     assert(u1.get() == nullptr); 
 }
-```
+
 2. Shared Ownership & Cache-Optimized Creation
-```C++
+
+C++
 #include "shared_ptr.hpp"
 #include <cassert>
 
