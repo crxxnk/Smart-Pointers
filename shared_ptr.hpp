@@ -50,7 +50,14 @@ template<typename T>
 struct make_shared_control_block : control_block
 {
     void destroy() {
-        T* obj = reinterpret_cast<T*>(reinterpret_cast<char*>(this) + sizeof(make_shared_control_block));
+        size_t cb_size = sizeof(make_shared_control_block<T>);
+        size_t obj_size = sizeof(T);
+        size_t padding_size = alignof(T) - 1; // worst case scenario
+        size_t raw_obj_addr = reinterpret_cast<uintptr_t>(this) + cb_size;
+        size_t remainder = raw_obj_addr % alignof(T);
+        if(remainder != 0)
+            raw_obj_addr += (alignof(T) - remainder);
+        T* obj = reinterpret_cast<T*>(reinterpret_cast<void*>(raw_obj_addr));
         obj->~T();
         this->~control_block();
         ::operator delete(this);
@@ -62,10 +69,15 @@ _NODISCARD auto iosp::make_shared(Args&&... args) -> iosp::shared_ptr<T>
 {
     size_t cb_size = sizeof(make_shared_control_block<T>);
     size_t obj_size = sizeof(T);
-    void* mem = ::operator new (cb_size+obj_size);
+    size_t padding_size = alignof(T) - 1; // worst case scenario
+    void* mem = ::operator new (cb_size+obj_size+padding_size);
     make_shared_control_block<T>* cb;
     cb = new (mem) make_shared_control_block<T>();
-    T* obj = new (reinterpret_cast<char*>(mem) + cb_size) T(std::forward<Args>(args)...); 
+    size_t raw_obj_addr = reinterpret_cast<uintptr_t>(mem) + cb_size;
+    size_t remainder = raw_obj_addr % alignof(T);
+    if(remainder != 0)
+        raw_obj_addr += (alignof(T) - remainder);
+    T* obj = new (reinterpret_cast<void*>(raw_obj_addr)) T(std::forward<Args>(args)...); 
     return iosp::shared_ptr<T>(obj, cb);
 };
 

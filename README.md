@@ -44,7 +44,7 @@ The implementation utilizes `std::allocator_traits::rebind_alloc` to dynamically
 using Alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<object_owner_alloc<Ptr, Deleter, Allocator>>;
 ```
 Strict Resource Protection & Strong Exceptions
-Constructors taking raw pointers are hardened against memory leaks. If allocating the underlying tracking control block fails `cpp(std::bad_alloc)`, the implementation automatically intercepts the failure, destroys the raw pointer to prevent dynamic leaks, and rethrows to ensure incomplete objects never enter the program state:
+Constructors taking raw pointers are hardened against memory leaks. If allocating the underlying tracking control block fails `(std::bad_alloc)`, the implementation automatically intercepts the failure, destroys the raw pointer to prevent dynamic leaks, and rethrows to ensure incomplete objects never enter the program state:
 
 ```cpp
 try {
@@ -95,12 +95,12 @@ int main() {
     assert(s1.use_count() == 1);
 } // Last counter dropped; memory block freed cleanly
 ```
-🔧 Building and Requirements
+###🔧 Building and Requirements
 Compiler: C++17 compliant compiler or newer (GCC 9+, Clang 10+, MSVC 2019+).
 
 Configuration: This is a header-only library. Simply copy the iosp files directly into your project's include path.
 
-# Compilation flags recommendation for validating memory layout integrity
+Compilation flags recommendation for validating memory layout integrity
 ``` Bash
 g++ -std=c++17 -Wall -Wextra main.cpp -o pointer_test
 ```
