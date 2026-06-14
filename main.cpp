@@ -47,7 +47,7 @@ struct Custom_Allocator
 };
 
 struct Bar { 
-    int cock;
+    int num;
 };
 
 struct Foo {
@@ -58,10 +58,12 @@ int main()
 {
     _Deleter dl;
     // my_unique_ptr<A, decltype(&deleter)> p{new A, &deleter};
-    iosp::unique_ptr<A, _Deleter> p(new A(1,2,'a'), dl);
+    iosp::unique_ptr<A, _Deleter> p(new A({1,2,'a'}), dl);
     // *p = {1,2,'a'};
 
     iosp::unique_ptr<int> _p = iosp::make_unique<int>(15); // make_unique doesn't support custom deleters
+
+    std::cout << std::endl;
 
     std::cout << p->b << std::endl;
     std::cout << p << std::endl;
@@ -86,10 +88,14 @@ int main()
     iosp::shared_ptr<int> sharedptr4 = iosp::make_shared<int>(19);
     std::cout << *sharedptr4 << std::endl;
 
-    iosp::shared_ptr<Foo> f = iosp::make_shared<Foo>(Bar(10));
+    iosp::shared_ptr<Foo> f = iosp::make_shared<Foo>();
+    f->bar = Bar{10};
     iosp::shared_ptr<Bar> specific_data(f, &f->bar);
 
     std::cout << "Aliasing use count" << f.use_count() << std::endl;
+
+    std::cout << "specific_data: " << (specific_data.get()->num) << std::endl;
+    std::cout << "f: " << f.get() << std::endl;
 
     // _p.get(); !warning
 

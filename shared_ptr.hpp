@@ -3,7 +3,10 @@
 #include <atomic>
 #include <memory>
 #include <iostream>
+#include "unique_ptr.hpp"
 #include "weak_ptr.hpp"
+
+//! TODO ADD ARRAY FUNCTIONALITY
 
 #define DEBUG
 
@@ -15,6 +18,10 @@ namespace iosp { // implementation of smart pointers
     _NODISCARD auto make_shared(Args&&... args) -> iosp::shared_ptr<T>;
     template<typename T>
     _NODISCARD auto make_shared(size_t size) -> iosp::shared_ptr<T>;
+
+
+    template<typename Ptr>
+    class weak_ptr;
 }
 
 template<typename, typename = void>
@@ -127,6 +134,7 @@ struct object_owner : public control_block
 template<typename Ptr>
 class iosp::shared_ptr
 {
+    //std::remove_extent<Ptr>* pointer;
     Ptr* pointer;
     control_block* cb;
 
@@ -162,8 +170,9 @@ public:
     template<typename Y>
     explicit shared_ptr(shared_ptr<Y>&& s) noexcept;
 
-    // template<typename Y>
-    // explicit shared_ptr(const iosp::weak_ptr<Y>& w) = delete; //! NOT IMPLEMENTED YET
+    // TODO
+    template<typename Y>
+    explicit shared_ptr(const iosp::weak_ptr<Y>& w);
 
     template<typename Y, typename Deleter>
     shared_ptr(iosp::unique_ptr<Y, Deleter>&& u);
@@ -196,8 +205,8 @@ public:
     _NODISCARD auto use_count() const noexcept -> std::size_t;
     template<typename Y>
     _NODISCARD auto owner_before(const shared_ptr<Y>& other) const noexcept -> bool;
-    // template<typename Y>
-    // _NODISCARD auto owner_before(const iosp::weak_ptr<Y>& other) const noexcept -> bool; // ! NOT IMPLEMENTED YET
+    template<typename Y>
+    _NODISCARD auto owner_before(const iosp::weak_ptr<Y>& other) const noexcept -> bool;
     auto reset() noexcept -> void;
     template <typename Y>
     auto reset(Y* _Ptr) -> void;
@@ -471,6 +480,14 @@ auto iosp::shared_ptr<Ptr>::owner_before(const shared_ptr<Y> &other) const noexc
     return cb < other.cb;
 }
 
+
+template <typename Ptr>
+template <typename Y>
+auto iosp::shared_ptr<Ptr>::owner_before(const weak_ptr<Y> &other) const noexcept -> bool
+{
+    return cb < other.cb;
+}
+
 template <typename Ptr>
 auto iosp::shared_ptr<Ptr>::operator*() const noexcept -> Ptr&
 {
@@ -524,4 +541,15 @@ auto iosp::shared_ptr<Ptr>::swap(shared_ptr &other) noexcept -> void
 {
     std::swap(pointer, other.pointer);
     std::swap(cb, other.cb);
+}
+
+template<typename Ptr>
+template<typename Y>
+iosp::shared_ptr<Ptr>::shared_ptr(const iosp::weak_ptr<Y>& w)
+{
+    if(!w.pointer)
+        throw std::bad_weak_ptr();
+    pointer = w.pointer;
+    cb = w.cb;
+    cb->strong_ref.fetch_add(1);
 }
